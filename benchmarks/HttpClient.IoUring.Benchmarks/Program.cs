@@ -1,3 +1,11 @@
-// Placeholder — benchmarks will be implemented after core transport is verified.
-Console.WriteLine("Run with: dotnet run -c Release");
-Console.WriteLine("Benchmarks coming soon.");
+using BenchmarkDotNet.Running;
+using HttpClient.IoUring.Benchmarks;
+
+if (args.Length > 0 && args[0] == "--quick")
+{
+    await QuickBench.RunAsync(args.Skip(1).ToArray());
+}
+else
+{
+    BenchmarkSwitcher.FromAssembly(typeof(ThroughputBenchmark).Assembly).Run(args);
+}
