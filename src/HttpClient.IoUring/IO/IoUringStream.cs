@@ -192,8 +192,22 @@ internal sealed class IoUringStream : Stream
         while (offset < buffer.Length)
         {
             var slice = buffer.Slice(offset);
-            var handle = slice.Pin();
+            // SEND_ZC requires the buffer to stay pinned until the NOTIF CQE arrives.
+            // We don't await the NOTIF here — instead we keep the handle alive by
+            // storing it and only disposing when the NOTIF completes.
             bool useZc = _enableZeroCopySend && slice.Length >= _zeroCopySendThreshold;
+
+            // Wait for any previous ZC send to finish its NOTIF before starting a new one.
+            if (_pendingZcNotifTask.HasValue)
+            {
+                await _pendingZcNotifTask.Value;
+                _pendingZcNotifTask = null;
+                _pendingZcHandle?.Dispose();
+                _pendingZcHandle = null;
+            }
+
+            var handle = slice.Pin();
+            bool handledTransferred = false;
             try
             {
                 int sent = await SubmitSend(handle, slice.Length, useZc);
@@ -206,24 +220,27 @@ internal sealed class IoUringStream : Stream
 
                 offset += sent;
 
-                // For SEND_ZC: wait for NOTIF CQE before unpinning memory.
-                // The NOTIF opId was stored by SubmitSend; the IO loop completes it
-                // when the kernel releases the buffer.
                 if (useZc && _pendingZcNotifCompletion != null)
                 {
-                    await _pendingZcNotifCompletion.AsValueTask();
+                    // Transfer handle ownership to the ZC tracking.
+                    _pendingZcHandle = handle;
+                    _pendingZcNotifTask = _pendingZcNotifCompletion.AsValueTask();
                     _pendingZcNotifCompletion = null;
+                    handledTransferred = true;
                 }
             }
             finally
             {
-                handle.Dispose();
+                if (!handledTransferred)
+                    handle.Dispose();
             }
         }
     }
 
-    // Zero-copy notification tracking (one outstanding ZC send at a time per stream).
+    // Zero-copy notification tracking.
     private PooledCompletion? _pendingZcNotifCompletion;
+    private MemoryHandle? _pendingZcHandle;
+    private ValueTask<int>? _pendingZcNotifTask;
 
     private unsafe ValueTask<int> SubmitSend(MemoryHandle handle, int length, bool zeroCopy)
     {

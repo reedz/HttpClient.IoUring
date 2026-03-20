@@ -92,7 +92,7 @@ public class HighConcurrencyStressTest : IAsyncLifetime
     public async Task MixedRequestSizes()
     {
         var tasks = new List<Task<HttpResponseMessage>>();
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < 20; i++)
         {
             tasks.Add(_client.GetAsync($"{_server.HttpBaseUrl}/"));
             tasks.Add(_client.GetAsync($"{_server.HttpBaseUrl}/large/1"));

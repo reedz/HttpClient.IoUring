@@ -209,9 +209,18 @@ internal sealed class IoUringClientLoop : IDisposable
             {
                 bool hasMore = (cqe.Flags & IoUringConstants.IORING_CQE_F_MORE) != 0;
 
-                if (hasMore && _zcNotifPending.TryRemove(cqe.UserData, out var pendingNotif))
+                if (_zcNotifPending.TryRemove(cqe.UserData, out var pendingNotif))
                 {
-                    _zcNotifCompletions.Set(cqe.UserData, pendingNotif!);
+                    if (hasMore)
+                    {
+                        // SEND_ZC: NOTIF CQE will follow with same user_data.
+                        _zcNotifCompletions.Set(cqe.UserData, pendingNotif!);
+                    }
+                    else
+                    {
+                        // Kernel did non-ZC fallback (no NOTIF coming). Complete immediately.
+                        pendingNotif!.SetResult(0);
+                    }
                 }
 
                 completion!.SetResult(cqe.Res);

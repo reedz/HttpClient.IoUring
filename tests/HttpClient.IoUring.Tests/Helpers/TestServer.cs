@@ -148,7 +148,7 @@ public sealed class TestServer : IAsyncDisposable
             DateTimeOffset.UtcNow.AddYears(1));
 
         // Export and re-import to get a cert with private key that works on Linux.
-        return new X509Certificate2(
+        return X509CertificateLoader.LoadPkcs12(
             cert.Export(X509ContentType.Pfx, "test"),
             "test",
             X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.Exportable);
