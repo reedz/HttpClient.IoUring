@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/HttpClient.IoUring/HttpClient.IoUring.csproj" />
+  <Project Path="tests/HttpClient.IoUring.Tests/HttpClient.IoUring.Tests.csproj" />
+  <Project Path="benchmarks/HttpClient.IoUring.Benchmarks/HttpClient.IoUring.Benchmarks.csproj" />
+  <Project Path="samples/SampleApp/SampleApp.csproj" />
+</Solution>
