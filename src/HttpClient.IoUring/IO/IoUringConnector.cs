@@ -16,11 +16,15 @@ internal sealed class IoUringConnector
 {
     private readonly IoUringClientLoop _loop;
     private readonly TimeSpan _connectTimeout;
+    private readonly bool _enableZeroCopySend;
+    private readonly int _zeroCopySendThreshold;
 
-    public IoUringConnector(IoUringClientLoop loop, TimeSpan connectTimeout)
+    public IoUringConnector(IoUringClientLoop loop, IoUringTransportOptions options)
     {
         _loop = loop;
-        _connectTimeout = connectTimeout;
+        _connectTimeout = options.ConnectTimeout;
+        _enableZeroCopySend = options.EnableZeroCopySend;
+        _zeroCopySendThreshold = options.ZeroCopySendThreshold;
     }
 
     /// <summary>
@@ -93,7 +97,8 @@ internal sealed class IoUringConnector
                     fileIndex = _loop.Ring.RegisterFd(fd);
             }
 
-            return new IoUringStream(fd, fileIndex, _loop);
+            return new IoUringStream(fd, fileIndex, _loop,
+                _enableZeroCopySend, _zeroCopySendThreshold);
         }
         catch
         {

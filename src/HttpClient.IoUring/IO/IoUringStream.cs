@@ -17,13 +17,18 @@ internal sealed class IoUringStream : Stream
     private readonly int _socketFd;
     private readonly int _fileIndex; // -1 if not registered
     private readonly IoUringClientLoop _loop;
+    private readonly bool _enableZeroCopySend;
+    private readonly int _zeroCopySendThreshold;
     private volatile bool _disposed;
 
-    public IoUringStream(int socketFd, int fileIndex, IoUringClientLoop loop)
+    public IoUringStream(int socketFd, int fileIndex, IoUringClientLoop loop,
+        bool enableZeroCopySend = false, int zeroCopySendThreshold = 4096)
     {
         _socketFd = socketFd;
         _fileIndex = fileIndex;
         _loop = loop;
+        _enableZeroCopySend = enableZeroCopySend;
+        _zeroCopySendThreshold = zeroCopySendThreshold;
     }
 
     public override bool CanRead => !_disposed;
@@ -62,6 +67,21 @@ internal sealed class IoUringStream : Stream
         if (buffer.Length == 0)
             return 0;
 
+        // Buffer ring path: kernel selects buffer, IO loop copies into caller's buffer.
+        if (_loop.HasBufferRing)
+        {
+            int result = await SubmitRecvWithBufRing(buffer);
+            if (result < 0)
+            {
+                int errno = -result;
+                if (errno is 125 or 104 or 32 or 105 /* ENOBUFS */)
+                    return 0;
+                throw new IOException($"io_uring RECV failed with errno {errno} ({GetErrorName(errno)})");
+            }
+            return result;
+        }
+
+        // Standard path: pin caller's buffer for kernel DMA.
         var handle = buffer.Pin();
         try
         {
@@ -70,18 +90,52 @@ internal sealed class IoUringStream : Stream
             if (result < 0)
             {
                 int errno = -result;
-                // ECANCELED / ECONNRESET / EPIPE → treat as EOF for graceful connection close.
                 if (errno is 125 or 104 or 32)
                     return 0;
                 throw new IOException($"io_uring RECV failed with errno {errno} ({GetErrorName(errno)})");
             }
 
-            return result; // 0 = EOF, >0 = bytes read
+            return result;
         }
         finally
         {
             handle.Dispose();
         }
+    }
+
+    private unsafe ValueTask<int> SubmitRecvWithBufRing(Memory<byte> callerBuffer)
+    {
+        var completion = PooledCompletion.Rent();
+        ulong opId;
+        bool submitted = false;
+
+        lock (_loop.Ring.SubmitLock)
+        {
+            opId = _loop.AllocateOpId();
+            _loop.RegisterRecvWithBufRing(opId, completion, callerBuffer);
+
+            if (_loop.Ring.TryGetSqe(out IoUringSqe* sqe))
+            {
+                sqe->Opcode = IoUringConstants.IORING_OP_RECV;
+                SetFd(sqe);
+                // Buffer ring: kernel picks buffer. addr=0, len=max we want.
+                sqe->AddrOrSpliceOffIn = 0;
+                sqe->Len = (uint)Math.Min(callerBuffer.Length, _loop.BufferRingBufferSize);
+                sqe->Flags |= IoUringConstants.IOSQE_BUFFER_SELECT;
+                sqe->BufIndexOrGroup = IoUringClientLoop.RECV_BUF_GROUP_ID;
+                sqe->UserData = opId;
+                submitted = true;
+            }
+        }
+
+        if (!submitted)
+        {
+            completion.SetResult(-IoUringConstants.EAGAIN);
+            return completion.AsValueTask();
+        }
+
+        _loop.Submit();
+        return completion.AsValueTask();
     }
 
     private unsafe ValueTask<int> SubmitRecv(MemoryHandle handle, int length)
@@ -131,9 +185,10 @@ internal sealed class IoUringStream : Stream
         {
             var slice = buffer.Slice(offset);
             var handle = slice.Pin();
+            bool useZc = _enableZeroCopySend && slice.Length >= _zeroCopySendThreshold;
             try
             {
-                int sent = await SubmitSend(handle, slice.Length);
+                int sent = await SubmitSend(handle, slice.Length, useZc);
 
                 if (sent <= 0)
                 {
@@ -142,6 +197,15 @@ internal sealed class IoUringStream : Stream
                 }
 
                 offset += sent;
+
+                // For SEND_ZC: wait for NOTIF CQE before unpinning memory.
+                // The NOTIF opId was stored by SubmitSend; the IO loop completes it
+                // when the kernel releases the buffer.
+                if (useZc && _pendingZcNotifCompletion != null)
+                {
+                    await _pendingZcNotifCompletion.AsValueTask();
+                    _pendingZcNotifCompletion = null;
+                }
             }
             finally
             {
@@ -150,7 +214,10 @@ internal sealed class IoUringStream : Stream
         }
     }
 
-    private unsafe ValueTask<int> SubmitSend(MemoryHandle handle, int length)
+    // Zero-copy notification tracking (one outstanding ZC send at a time per stream).
+    private PooledCompletion? _pendingZcNotifCompletion;
+
+    private unsafe ValueTask<int> SubmitSend(MemoryHandle handle, int length, bool zeroCopy)
     {
         var completion = PooledCompletion.Rent();
         ulong opId;
@@ -163,12 +230,22 @@ internal sealed class IoUringStream : Stream
 
             if (_loop.Ring.TryGetSqe(out IoUringSqe* sqe))
             {
-                sqe->Opcode = IoUringConstants.IORING_OP_SEND;
+                sqe->Opcode = zeroCopy
+                    ? IoUringConstants.IORING_OP_SEND_ZC
+                    : IoUringConstants.IORING_OP_SEND;
                 SetFd(sqe);
                 sqe->AddrOrSpliceOffIn = (ulong)handle.Pointer;
                 sqe->Len = (uint)length;
                 sqe->UserData = opId;
                 submitted = true;
+
+                // For SEND_ZC: register a notification completion for the NOTIF CQE.
+                if (zeroCopy)
+                {
+                    var notifCompletion = PooledCompletion.Rent();
+                    _loop.RegisterZcNotif(opId, notifCompletion);
+                    _pendingZcNotifCompletion = notifCompletion;
+                }
             }
         }
 

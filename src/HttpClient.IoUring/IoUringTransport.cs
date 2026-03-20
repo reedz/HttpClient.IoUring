@@ -70,7 +70,7 @@ public sealed class IoUringTransport : IDisposable
                     "Requires Linux kernel 5.1+ with io_uring enabled.");
 
             _loop = new IoUringClientLoop(_options);
-            _connector = new IoUringConnector(_loop, _options.ConnectTimeout);
+            _connector = new IoUringConnector(_loop, _options);
         }
     }
 
