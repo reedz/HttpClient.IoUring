@@ -252,6 +252,18 @@ public sealed class Ring : IDisposable
         return Enter(toSubmit, 0, 0);
     }
 
+    /// <summary>
+    /// Flushes and submits while already holding <see cref="SubmitLock"/>.
+    /// Caller MUST hold the lock.
+    /// </summary>
+    internal int FlushAndEnter()
+    {
+        uint toSubmit = _sq.Flush();
+        if (toSubmit == 0)
+            return 0;
+        return Enter(toSubmit, 0, 0);
+    }
+
     /// <summary>Submits pending entries and waits for at least <paramref name="minComplete"/> completions.</summary>
     public int SubmitAndWait(uint minComplete)
     {

@@ -149,7 +149,15 @@ internal sealed class IoUringStream : Stream
             opId = _loop.AllocateOpId();
             _loop.RegisterPending(opId, completion);
 
-            if (_loop.Ring.TryGetSqe(out IoUringSqe* sqe))
+            if (!_loop.Ring.TryGetSqe(out IoUringSqe* sqe))
+            {
+                // SQ full: flush pending and retry once.
+                _loop.Ring.FlushAndEnter();
+                
+                _loop.Ring.TryGetSqe(out sqe);
+            }
+
+            if (sqe != null)
             {
                 sqe->Opcode = IoUringConstants.IORING_OP_RECV;
                 SetFd(sqe);
@@ -228,7 +236,14 @@ internal sealed class IoUringStream : Stream
             opId = _loop.AllocateOpId();
             _loop.RegisterPending(opId, completion);
 
-            if (_loop.Ring.TryGetSqe(out IoUringSqe* sqe))
+            if (!_loop.Ring.TryGetSqe(out IoUringSqe* sqe))
+            {
+                _loop.Ring.FlushAndEnter();
+                
+                _loop.Ring.TryGetSqe(out sqe);
+            }
+
+            if (sqe != null)
             {
                 sqe->Opcode = zeroCopy
                     ? IoUringConstants.IORING_OP_SEND_ZC
@@ -239,7 +254,6 @@ internal sealed class IoUringStream : Stream
                 sqe->UserData = opId;
                 submitted = true;
 
-                // For SEND_ZC: register a notification completion for the NOTIF CQE.
                 if (zeroCopy)
                 {
                     var notifCompletion = PooledCompletion.Rent();

@@ -14,11 +14,11 @@ Comparing `SocketsHttpHandler` with default socket transport vs io_uring transpo
 
 | Concurrency | Socket | io_uring | Improvement |
 |-------------|--------|----------|-------------|
-| 1 | 9,146 | **15,841** | **+73%** |
-| 16 | 16,717 | **24,325** | **+46%** |
-| 64 | 19,312 | **25,696** | **+33%** |
-| 128 | 20,932 | **27,716** | **+32%** |
-| 256 | 20,499 | **26,778** | **+31%** |
+| 1 | 9,339 | **15,738** | **+69%** |
+| 16 | 17,412 | **22,546** | **+29%** |
+| 64 | 19,553 | **24,876** | **+27%** |
+| 128 | 18,649 | **27,006** | **+45%** |
+| 256 | 19,435 | **26,956** | **+39%** |
 
 io_uring's advantage is largest at low concurrency (73% at single-threaded!) because the batched syscall model reduces per-request overhead. At higher concurrency, both transports benefit from connection pooling, but io_uring maintains a consistent 30%+ advantage.
 
@@ -27,7 +27,7 @@ io_uring's advantage is largest at low concurrency (73% at single-threaded!) bec
 1. **Batched syscalls**: Multiple connections' CONNECT/SEND/RECV are submitted in a single `io_uring_enter`
 2. **No per-operation memory allocation**: Pooled `IValueTaskSource` completions
 3. **Registered file descriptors**: Kernel skips fd lookup per SQE
-4. **Single IO thread**: Avoids thread pool scheduling overhead for I/O completions
+5. **SQ-full retry**: When the submission queue is full under high concurrency, the transport flushes pending SQEs inline and retries, avoiding EAGAIN errors
 
 ## Methodology
 
