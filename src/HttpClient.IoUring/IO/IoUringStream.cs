@@ -117,11 +117,11 @@ internal sealed class IoUringStream : Stream
             if (_loop.Ring.TryGetSqe(out IoUringSqe* sqe))
             {
                 sqe->Opcode = IoUringConstants.IORING_OP_RECV;
-                SetFd(sqe);
-                // Buffer ring: kernel picks buffer. addr=0, len=max we want.
+                // Use raw fd (not registered) for buffer ring recv to avoid flag conflicts.
+                sqe->Fd = _socketFd;
                 sqe->AddrOrSpliceOffIn = 0;
-                sqe->Len = (uint)Math.Min(callerBuffer.Length, _loop.BufferRingBufferSize);
-                sqe->Flags |= IoUringConstants.IOSQE_BUFFER_SELECT;
+                sqe->Len = (uint)_loop.BufferRingBufferSize;
+                sqe->Flags = IoUringConstants.IOSQE_BUFFER_SELECT;
                 sqe->BufIndexOrGroup = IoUringClientLoop.RECV_BUF_GROUP_ID;
                 sqe->UserData = opId;
                 submitted = true;
