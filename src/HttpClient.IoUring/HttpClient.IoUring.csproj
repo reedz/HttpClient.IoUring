@@ -13,24 +13,45 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
 
     <!-- NuGet package metadata -->
     <PackageId>HttpClient.IoUring</PackageId>
     <Version>1.0.0</Version>
     <Authors>reedz</Authors>
-    <Description>High-performance io_uring transport for HttpClient / SocketsHttpHandler. Replaces default socket I/O with Linux io_uring for batched syscalls, zero-copy send, and buffer rings.</Description>
+    <Company>reedz</Company>
+    <Copyright>Copyright (c) 2026 reedz</Copyright>
+    <Description>High-performance io_uring transport for HttpClient / SocketsHttpHandler. Replaces default socket I/O with Linux io_uring for batched syscalls, zero-copy send, and buffer rings. Up to 69% faster throughput on Linux.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageTags>io_uring;httpclient;socketshttphandler;transport;linux;high-performance;networking;zero-copy</PackageTags>
+    <PackageTags>io_uring;httpclient;socketshttphandler;transport;linux;high-performance;networking;zero-copy;io-uring</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/reedz/HttpClient.IoUring</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/reedz/HttpClient.IoUring</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/reedz/HttpClient.IoUring.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageReleaseNotes>
+v1.0.0 — Initial release
+• Drop-in io_uring transport via handler.UseIoUring()
+• Batched syscalls across all connections (single io_uring_enter)
+• Buffer rings for recv (eliminates per-recv memory pinning)
+• SEND_ZC zero-copy send for large payloads (opt-in)
+• Registered file descriptors (IOSQE_FIXED_FILE)
+• Lock-free CompletionSlots for O(1) CQE dispatch
+• 27–69% faster than default SocketsHttpHandler
+• Targets net8.0, net9.0, net10.0
+    </PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="HttpClient.IoUring.Tests" />
+  </ItemGroup>
+
+  <!-- Source Link for GitHub -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
   </ItemGroup>
 </Project>
