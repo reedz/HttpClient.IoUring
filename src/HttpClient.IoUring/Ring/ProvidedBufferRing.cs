@@ -98,8 +98,8 @@ internal sealed unsafe class ProvidedBufferRing : IDisposable
 
     private nint GetBufferPointer(ushort bufferId)
     {
-        fixed (byte* p = &_backingMemory[bufferId * _bufferSize])
-            return (nint)p;
+        // _backingMemory is pinned (GC.AllocateArray pinned:true), so address is stable.
+        return (nint)Unsafe.AsPointer(ref _backingMemory[bufferId * _bufferSize]);
     }
 
     private void CommitTail()

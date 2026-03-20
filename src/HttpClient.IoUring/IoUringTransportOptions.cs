@@ -22,10 +22,9 @@ public sealed class IoUringTransportOptions
 
     /// <summary>
     /// Number of entries in the provided buffer ring for recv operations.
-    /// Set to 0 to disable buffer rings. Must be a power of two. Default: 0 (disabled).
-    /// Note: Buffer ring with single-shot recv requires further kernel compatibility testing.
+    /// Eliminates per-recv memory pinning. Set to 0 to disable. Must be a power of two. Default: 64.
     /// </summary>
-    public int BufferRingSize { get; set; }
+    public int BufferRingSize { get; set; } = 64;
 
     /// <summary>Size of each buffer in the buffer ring. Default: 4096 bytes.</summary>
     public int BufferRingBufferSize { get; set; } = 4096;
