@@ -3,7 +3,7 @@
 [![NuGet](https://img.shields.io/nuget/v/HttpClient.IoUring.svg)](https://www.nuget.org/packages/HttpClient.IoUring)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A high-performance **io_uring** transport for [`SocketsHttpHandler`](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.socketshttphandler) that replaces the default socket I/O with Linux's `io_uring` interface. **Up to 73% faster** throughput on Linux.
+A high-performance **io_uring** transport for [`SocketsHttpHandler`](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.socketshttphandler) that replaces the default socket I/O with Linux's `io_uring` interface. **Up to 69% faster** throughput on Linux.
 
 ## Performance
 
@@ -11,11 +11,11 @@ On a 2-core VM (AMD EPYC 9V74, Linux 6.17, .NET 10):
 
 | Concurrency | Socket | io_uring | Improvement |
 |-------------|--------|----------|-------------|
-| 1 | 9,146 req/s | **15,841 req/s** | **+73%** |
-| 16 | 16,717 req/s | **24,325 req/s** | **+46%** |
-| 64 | 19,312 req/s | **25,696 req/s** | **+33%** |
-| 128 | 20,932 req/s | **27,716 req/s** | **+32%** |
-| 256 | 20,499 req/s | **26,778 req/s** | **+31%** |
+| 1 | 9,339 req/s | **15,738 req/s** | **+69%** |
+| 16 | 17,412 req/s | **22,546 req/s** | **+29%** |
+| 64 | 19,553 req/s | **24,876 req/s** | **+27%** |
+| 128 | 18,649 req/s | **27,006 req/s** | **+45%** |
+| 256 | 19,435 req/s | **26,956 req/s** | **+39%** |
 
 See [BENCHMARKS.md](BENCHMARKS.md) for detailed methodology.
 

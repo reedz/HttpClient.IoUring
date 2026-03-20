@@ -20,8 +20,10 @@ public sealed class IoUringTransport : IDisposable
     /// <summary>Gets a value indicating whether io_uring is supported on this system.</summary>
     public static bool IsSupported => Ring.Ring.IsSupported;
 
+    /// <summary>Initializes a new transport with default options.</summary>
     public IoUringTransport() : this(new IoUringTransportOptions()) { }
 
+    /// <summary>Initializes a new transport with the specified options.</summary>
     public IoUringTransport(IoUringTransportOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -74,6 +76,7 @@ public sealed class IoUringTransport : IDisposable
         }
     }
 
+    /// <summary>Releases all io_uring resources and stops the IO loop.</summary>
     public void Dispose()
     {
         if (_disposed) return;
